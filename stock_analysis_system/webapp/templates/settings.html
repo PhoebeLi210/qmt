@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}推送设置 - chaogu{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>推送设置</h1>
+  <span class="hint">自选股盘后分析结论只推送到你本人配置的渠道</span>
+</div>
+
+<div class="card" style="max-width:640px">
+  <form method="post" class="auth-form">
+    <label>推送渠道</label>
+    <select name="push_type">
+      <option value="" {{ 'selected' if not user.push_type }}>不推送</option>
+      <option value="feishu" {{ 'selected' if user.push_type == 'feishu' }}>飞书自定义机器人</option>
+      <option value="dingtalk" {{ 'selected' if user.push_type == 'dingtalk' }}>钉钉自定义机器人</option>
+      <option value="bark" {{ 'selected' if user.push_type == 'bark' }}>Bark（iOS）</option>
+    </select>
+
+    <label>Webhook 地址 / Bark Key</label>
+    <input type="text" name="push_target" value="{{ user.push_target or '' }}"
+           placeholder="飞书/钉钉填完整 webhook URL；Bark 填 App Key">
+    <div class="hint" style="margin:6px 0 14px">
+      飞书/钉钉请在群里添加"自定义机器人"，安全设置选<b>自定义关键词</b>并填 <code>chaogu</code>
+      （推送标题含该词即可通过）。
+    </div>
+    <div class="inline-form">
+      <button type="submit" class="btn btn-primary">保存</button>
+      <button type="button" id="testBtn" class="btn"
+              data-test-url="{{ url_for('settings_test') }}">发送测试消息</button>
+      <span id="testResult" class="hint"></span>
+    </div>
+  </form>
+</div>
+
+<script>
+document.getElementById('testBtn').addEventListener('click', async function (ev) {
+  const type = document.querySelector('[name=push_type]').value;
+  const target = document.querySelector('[name=push_target]').value.trim();
+  const out = document.getElementById('testResult');
+  out.textContent = '发送中…';
+  const form = new FormData();
+  form.append('push_type', type);
+  form.append('push_target', target);
+  try {
+    const resp = await fetch(ev.target.dataset.testUrl, { method: 'POST', body: form });
+    const data = await resp.json();
+    out.textContent = data.ok ? '✅ 发送成功，请查收' : ('❌ ' + data.msg);
+  } catch (e) {
+    out.textContent = '❌ 请求失败: ' + e;
+  }
+});
+</script>
+{% endblock %}

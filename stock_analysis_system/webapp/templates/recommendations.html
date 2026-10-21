@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}推荐清单 - chaogu{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>每日推荐清单</h1>
+  <form method="get" class="date-picker">
+    {% if dates %}
+    <select name="date" onchange="this.form.submit()">
+      {% for d in dates %}
+      <option value="{{ d }}" {{ 'selected' if d == trade_date }}>{{ d }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <span class="hint">全员共享同一份 v2.5 全市场扫描结果</span>
+  </form>
+</div>
+
+{% if not rows %}
+  <div class="empty">暂无推荐数据。{{ '今天还没跑全市场扫描，收盘后运行 run_scan.ps1 后此处自动更新。' if trade_date == today or not trade_date else '该日期无记录。' }}</div>
+{% else %}
+  {% if regime == 'risk_off' %}
+  <div class="banner banner-danger">
+    ⚠️ 大盘 risk_off：上证跌破20日线且RSI&lt;35，本批为反弹观察仓，仅3只、3%/只、止损-3%、时间止损3日，反弹失败立即撤离。
+  </div>
+  {% elif regime == 'bear' %}
+  <div class="banner banner-warn">🐻 大盘择时 bear（收盘低于20日线），仓位已×0.5。</div>
+  {% elif regime == 'neutral' %}
+  <div class="banner banner-info">大盘择时 neutral，仓位已×0.7。</div>
+  {% elif regime == 'bull' %}
+  <div class="banner banner-ok">🐂 大盘择时 bull（20日线上行），正常仓位。</div>
+  {% endif %}
+
+  <div class="table-wrap">
+  <table class="grid grid-fixed">
+    <colgroup>
+      <col class="c-rank"><col class="c-code"><col class="c-name"><col class="c-price"><col class="c-pct">
+      <col class="c-pattern"><col class="c-score"><col class="c-industry"><col class="c-position">
+      <col class="c-stop"><col class="c-take"><col class="c-time"><col class="c-reason">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>#</th><th>代码</th><th>名称</th><th>现价</th><th>涨幅</th>
+        <th>形态</th><th>评分</th><th>行业</th><th>仓位建议</th>
+        <th>止损位</th><th>止盈位</th><th>时间止损</th><th>推荐理由</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for s in rows %}
+      <tr>
+        <td class="num">{{ s.rank_no }}</td>
+        <td class="mono">{{ s.code }}</td>
+        <td class="nowrap">{{ s.name or '—' }}</td>
+        <td class="num">{{ s.latest_price | fmtnum }}</td>
+        <td class="num {{ 'up' if (s.change_pct or 0) > 0 else ('down' if (s.change_pct or 0) < 0) }}">
+          {{ '%+.2f%%' | format(s.change_pct) if s.change_pct is not none else '—' }}
+        </td>
+        <td><span class="tag tag-pattern">{{ s.pattern or '—' }}</span></td>
+        <td class="num strong">{{ s.score | fmtnum(1) }}</td>
+        <td>{{ s.industry or '—' }}</td>
+        <td class="cell-small">{{ s.position_sizing or '—' }}</td>
+        <td class="cell-small down">{{ s.stop_loss or '—' }}</td>
+        <td class="cell-small up">{{ s.take_profit or '—' }}</td>
+        <td class="cell-small">{{ s.time_stop or '—' }}</td>
+        <td class="cell-reason">{{ s.recommendation_reason or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <div class="disclaimer">
+    模型信号基于历史数据与量化规则（多因子评分、9条件底反弹、K线组合、差异化止损止盈），<b>仅供参考，不构成投资建议</b>。
+    次日介入前请按报告中的分时验证要点确认开盘位置与量能，市场有风险，投资需谨慎。
+  </div>
+{% endif %}
+{% endblock %}

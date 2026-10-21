@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% block title %}{{ r.name or r.code }} 分析 - chaogu{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ r.name or r.code }} <span class="sub mono">{{ r.code }}</span></h1>
+    <div class="hint">分析日期 {{ r.trade_date }} · 模型 v2.5</div>
+  </div>
+  <a href="{{ url_for('watchlist') }}" class="btn">返回自选</a>
+</div>
+
+{% if r.status in ('pending', 'running') %}
+  <div class="card center" id="pendingCard"
+       data-status-url="{{ request.script_root }}/api/analysis_status/{{ r.id }}">
+    <span class="tag tag-pending big">分析中…约需30-90秒，完成后自动跳转</span>
+  </div>
+  <script>
+  (function () {
+    const url = document.getElementById('pendingCard').dataset.statusUrl;
+    const timer = setInterval(async () => {
+      try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.ok && (data.status === 'done' || data.status === 'failed')) {
+          clearInterval(timer); location.reload();
+        }
+      } catch (e) { /* 忽略单次轮询失败 */ }
+    }, 8000);
+  })();
+  </script>
+{% elif r.status == 'failed' %}
+  <div class="card"><div class="fail-box">❌ 分析失败：{{ r.error_msg or '未知错误' }}</div>
+  <p class="hint">常见原因：行情源临时不可用、该股票K线不足20个交易日。可稍后重试。</p></div>
+{% else %}
+
+  {# ---------- 总结论 ---------- #}
+  <div class="verdict {{ 'verdict-pass' if r.passed else 'verdict-nopass' }}">
+    {% if r.passed %}
+      ✅ 符合模型买点条件：{{ r.recommendation_reason }}
+    {% else %}
+      ⭕ 不符合模型买点条件，不建议按推荐介入
+    {% endif %}
+  </div>
+  {% if fail_reasons %}
+  <div class="card fail-box">
+    <b>未通过原因：</b>
+    <ul>{% for reason in fail_reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {# ---------- 概览 ---------- #}
+  <div class="metric-grid">
+    <div class="metric"><div class="metric-label">最新价</div><div class="metric-value">{{ r.latest_price | fmtnum }}</div></div>
+    <div class="metric"><div class="metric-label">涨跌幅</div>
+      <div class="metric-value {{ 'up' if (r.change_pct or 0) > 0 else ('down' if (r.change_pct or 0) < 0) }}">
+        {{ '%+.2f%%' | format(r.change_pct) if r.change_pct is not none else '—' }}
+      </div>
+    </div>
+    <div class="metric"><div class="metric-label">形态</div><div class="metric-value">{{ r.pattern or '未识别' }}</div></div>
+    <div class="metric"><div class="metric-label">风险等级</div><div class="metric-value">{{ r.risk_level or '—' }}</div></div>
+    <div class="metric"><div class="metric-label">大盘择时</div><div class="metric-value">{{ r.market_regime or '—' }}</div></div>
+  </div>
+
+  {# ---------- 评分 ---------- #}
+  <h2>评分明细</h2>
+  <div class="metric-grid">
+    <div class="metric"><div class="metric-label">基本面（满分60）</div><div class="metric-value">{{ r.fundamental_score | fmtnum(1) }}</div></div>
+    <div class="metric"><div class="metric-label">技术面</div><div class="metric-value">{{ r.technical_score | fmtnum(1) }}</div></div>
+    <div class="metric"><div class="metric-label">综合评分</div><div class="metric-value">{{ r.score | fmtnum(1) }}</div></div>
+    <div class="metric"><div class="metric-label">风险扣分</div><div class="metric-value">{{ r.risk_score | fmtnum(1) }}</div></div>
+    <div class="metric {{ 'metric-hit' if r.final_score >= r.threshold }}">
+      <div class="metric-label">最终评分 / 门槛</div>
+      <div class="metric-value">{{ r.final_score | fmtnum(1) }} / {{ r.threshold | fmtnum(0) }}</div>
+    </div>
+  </div>
+
+  {# ---------- 信号 ---------- #}
+  <h2>信号</h2>
+  <div class="card signal-box">
+    <div class="signal-row">
+      <span class="signal-label up">积极信号（{{ positive | length }}）</span>
+      <span>
+        {% for i in positive %}<span class="tag tag-pos">{{ i }}</span>{% else %}<span class="hint">无</span>{% endfor %}
+      </span>
+    </div>
+    {% if top_signals %}
+    <div class="signal-row">
+      <span class="signal-label warn">见顶风险信号</span>
+      <span>{% for i in top_signals %}<span class="tag tag-top">{{ i }}</span>{% endfor %}</span>
+    </div>
+    {% endif %}
+    {% if neutral %}
+    <div class="signal-row">
+      <span class="signal-label">中性信号</span>
+      <span>{% for i in neutral %}<span class="tag">{{ i }}</span>{% endfor %}</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ---------- K线组合 / 形态条件 ---------- #}
+  {% if combos or conditions %}
+  <h2>形态确认</h2>
+  <div class="card">
+    {% if combos %}
+    <p><b>看涨K线组合：</b>{% for c in combos %}<span class="tag tag-pos">{{ c }}</span>{% endfor %}</p>
+    {% endif %}
+    {% if conditions %}
+    <table class="mini-table">
+      <thead><tr><th>底反弹条件</th><th>结果</th></tr></thead>
+      <tbody>
+      {% for key, value in conditions %}
+        <tr>
+          <td class="cell-small">{{ key }}</td>
+          <td>
+            {% if value is boolean %}
+              <span class="{{ 'up' if value else 'down' }}">{{ '✅ 满足' if value else '❌ 不满足' }}</span>
+            {% else %}{{ value }}{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% for key, value in extras.items() %}
+      <p class="cell-small"><b>{{ key }}：</b>{{ value }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ---------- 交易计划 ---------- #}
+  <h2>参考交易计划</h2>
+  <div class="card plan-box">
+    <p><span class="plan-label">止损位：</span><span class="down">{{ r.stop_loss }}</span></p>
+    <p><span class="plan-label">止盈位：</span><span class="up">{{ r.take_profit }}</span></p>
+    <p><span class="plan-label">时间止损：</span>{{ r.time_stop }}</p>
+    <p class="hint" style="margin-top:8px">
+      以上价位基于分析日收盘价计算。若实际买入成本不同，请按成本价等比例换算；
+      浮盈+3%/+5% 后注意移动止损规则。
+    </p>
+  </div>
+
+  {# ---------- 资金与筹码（观察指标，不参与评分） ---------- #}
+  {% if fund or chip_data %}
+  <h2>资金与筹码 <span class="hint" style="font-size:12px;font-weight:normal">分析日快照，观察参考</span></h2>
+  <div class="card">
+    {% if fund %}
+    <p class="cell-small" style="margin:0 0 8px"><b>大资金流向（当日）</b></p>
+    <div class="metric-grid" style="margin-bottom:12px">
+      {% set mr = fund.mf_main_ratio %}
+      <div class="metric">
+        <div class="metric-label">主力净流入（超大+大单）</div>
+        <div class="metric-value {{ 'up' if (fund.mf_main_net or 0) > 0 else 'down' }}">
+          {% if fund.mf_main_net is not none %}
+            {% if fund.mf_main_net|abs >= 1e8 %}{{ '%+.2f'|format(fund.mf_main_net/1e8) }} 亿
+            {% elif fund.mf_main_net|abs >= 1e4 %}{{ '%+.0f'|format(fund.mf_main_net/1e4) }} 万
+            {% else %}{{ '%+.0f'|format(fund.mf_main_net) }} 元{% endif %}
+          {% else %}—{% endif %}
+        </div>
+        {% if mr is not none %}<div class="metric-sub {{ 'up' if mr > 0 else 'down' }}">占成交额 {{ '%+.1f'|format(mr*100) }}%</div>{% endif %}
+      </div>
+      <div class="metric">
+        <div class="metric-label">超大单净额 / 占比</div>
+        <div class="metric-value {{ 'up' if (fund.mf_super_net or 0) > 0 else 'down' }}" style="font-size:16px">
+          {% if fund.mf_super_net is not none and fund.mf_super_net|abs >= 1e4 %}{{ '%+.0f'|format(fund.mf_super_net/1e4) }} 万{% else %}—{% endif %}
+        </div>
+        {% if fund.mf_super_ratio is not none %}<div class="metric-sub {{ 'up' if fund.mf_super_ratio > 0 else 'down' }}">{{ '%+.1f'|format(fund.mf_super_ratio*100) }}%</div>{% endif %}
+      </div>
+      <div class="metric">
+        <div class="metric-label">大单净额 / 占比</div>
+        <div class="metric-value {{ 'up' if (fund.mf_big_net or 0) > 0 else 'down' }}" style="font-size:16px">
+          {% if fund.mf_big_net is not none and fund.mf_big_net|abs >= 1e4 %}{{ '%+.0f'|format(fund.mf_big_net/1e4) }} 万{% else %}—{% endif %}
+        </div>
+        {% if fund.mf_big_ratio is not none %}<div class="metric-sub {{ 'up' if fund.mf_big_ratio > 0 else 'down' }}">{{ '%+.1f'|format(fund.mf_big_ratio*100) }}%</div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% if chip_data %}
+    <p class="cell-small" style="margin:0 0 8px"><b>持股筹码分布（近 {{ chip_data.win }} 个交易日成本估算）</b></p>
+    <div class="metric-grid">
+      <div class="metric">
+        <div class="metric-label">获利盘比例</div>
+        <div class="metric-value {{ 'up' if chip_data.profit_ratio >= 0.5 else 'down' }}">{{ '%.1f'|format(chip_data.profit_ratio*100) }}%</div>
+        <div class="metric-sub">{% if chip_data.profit_ratio >= 0.8 %}多数筹码获利，警惕高位兑现{% elif chip_data.profit_ratio <= 0.2 %}多数筹码套牢，上方抛压重{% else %}获利/套牢相对均衡{% endif %}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">平均成本 / 现价偏离</div>
+        <div class="metric-value" style="font-size:16px">{{ '%.2f'|format(chip_data.avg_cost) }}</div>
+        {% if chip_data.price_vs_cost is not none %}<div class="metric-sub {{ 'up' if chip_data.price_vs_cost > 0 else 'down' }}">{{ '%+.1f'|format(chip_data.price_vs_cost*100) }}%</div>{% endif %}
+      </div>
+      <div class="metric">
+        <div class="metric-label">90% 筹码成本区间</div>
+        <div class="metric-value" style="font-size:15px">{{ '%.2f'|format(chip_data.cost90_low) }} ~ {{ '%.2f'|format(chip_data.cost90_high) }}</div>
+        <div class="metric-sub">集中度 {{ '%.1f'|format(chip_data.conc90*100) }}%（越小越集中）</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">70% 筹码成本区间</div>
+        <div class="metric-value" style="font-size:15px">{{ '%.2f'|format(chip_data.cost70_low) }} ~ {{ '%.2f'|format(chip_data.cost70_high) }}</div>
+        <div class="metric-sub">集中度 {{ '%.1f'|format(chip_data.conc70*100) }}%</div>
+      </div>
+    </div>
+    <p class="hint" style="margin:8px 0 0">主力资金为新浪口径（超大单+大单机械分类，可能被拆单误导）；
+    筹码分布由历史换手衰减模型估算，非真实持仓数据。两者仅供观察，不构成买卖依据。</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="disclaimer">
+    本报告由量化模型基于历史数据自动生成，<b>仅供参考，不构成投资建议</b>。
+    模型信号可能失效，买入卖出与风险由本人承担。
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ stock_data.name }} ({{ stock_data.code }}) - 股票分析报告</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .stock-info {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+            font-size: 1.1em;
+        }
+        
+        .stock-info div {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        }
+        
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        
+        h3 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+        
+        .signal-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        
+        .signal-card h2 {
+            color: white;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .signal-text {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        
+        .price-info {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        
+        .price-info div {
+            text-align: center;
+        }
+        
+        .price-label {
+            font-size: 1.1em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .price-value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .analysis-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .analysis-item h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        
+        .analysis-item p {
+            color: #555;
+            font-size: 1.1em;
+        }
+        
+        .level2-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .level2-item {
+            background: #f0f4f8;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .level2-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .level2-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .buy-sell-tips {
+            background: #e8f5e9;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .buy-sell-tips h4 {
+            color: #2e7d32;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .tip-list {
+            list-style: none;
+        }
+        
+        .tip-list li {
+            margin-bottom: 10px;
+            padding-left: 25px;
+            position: relative;
+        }
+        
+        .tip-list li:before {
+            content: "💡";
+            position: absolute;
+            left: 0;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+            }
+            
+            .stock-info {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .analysis-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* 信号颜色编码 */
+        .signal-进场 {
+            color: #9c27b0;
+        }
+        
+        .signal-出场 {
+            color: #4caf50;
+        }
+        
+        .signal-加仓 {
+            color: #f44336;
+        }
+        
+        .signal-减仓 {
+            color: #ff9800;
+        }
+        
+        .signal-观望 {
+            color: #9e9e9e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">⬅️ 返回输入页面</a>
+        
+        <header>
+            <h1>{{ stock_data.name }} ({{ stock_data.code }})</h1>
+            <div class="stock-info">
+                <div>行业: {{ stock_data.industry }}</div>
+                <div>当前价格: {{ stock_data.current_price }}元</div>
+                <div>涨跌幅: {{ stock_data.change_pct }}%</div>
+                <div>换手率: {{ stock_data.turnover_rate }}%</div>
+                <div>市场情绪: {{ stock_data.market_sentiment }}</div>
+            </div>
+        </header>
+        
+        <!-- 交易信号卡片 -->
+        <div class="signal-card">
+            <h2>📊 交易信号</h2>
+            <div class="signal-text signal-{{ signal_info.signal }}">{{ signal_info.signal }}</div>
+            <div class="price-info">
+                <div>
+                    <div class="price-label">目标卖出价格</div>
+                    <div class="price-value">¥{{ signal_info.high_price }}</div>
+                </div>
+                <div>
+                    <div class="price-label">支撑买入价格</div>
+                    <div class="price-value">¥{{ signal_info.low_price }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 技术分析 -->
+        <div class="card">
+            <h2>🔬 技术分析</h2>
+            <div class="analysis-grid">
+                <div class="analysis-item">
+                    <h4>历史波动率</h4>
+                    <p>{{ "{:.4f}".format(signal_info.historical_volatility) }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>技术支撑位</h4>
+                    <p>¥{{ signal_info.technical_support }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>技术阻力位</h4>
+                    <p>¥{{ signal_info.technical_resistance }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 资金流向分析 -->
+        <div class="card">
+            <h2>💰 资金流向分析</h2>
+            
+            <h3>主力资金分析</h3>
+            <div class="analysis-grid">
+                <div class="analysis-item">
+                    <h4>主力资金流向</h4>
+                    <p>{{ main_info.main_trend }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>趋势强度</h4>
+                    <p>{{ main_info.trend_strength }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>价格趋势预测</h4>
+                    <p>{{ main_info.price_trend }}</p>
+                </div>
+            </div>
+            
+            <h3>散户流向分析</h3>
+            <div class="analysis-grid">
+                <div class="analysis-item">
+                    <h4>散户数量变化</h4>
+                    <p>{{ retail_info.retail_trend }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>筹码集中度</h4>
+                    <p>{{ retail_info.concentration }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>对股价影响</h4>
+                    <p>{{ retail_info.price_impact }}</p>
+                </div>
+            </div>
+            
+            <h3>主力持仓分析</h3>
+            <div class="analysis-grid">
+                <div class="analysis-item">
+                    <h4>主力持仓变化</h4>
+                    <p>{{ holding_info.holding_trend }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>平均成本</h4>
+                    <p>¥{{ holding_info.avg_cost }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>成本偏离</h4>
+                    <p>{{ holding_info.cost_diff }}元 ({{ holding_info.cost_diff_pct }}%)</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>趋势影响</h4>
+                    <p>{{ holding_info.trend_impact }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Level-2指标分析 -->
+        <div class="card">
+            <h2>🔍 Level-2指标分析</h2>
+            
+            {% if level2_info %}
+            <h3>核心Level-2指标</h3>
+            <div class="level2-grid">
+                <div class="level2-item">
+                    <div class="level2-label">订单簿不平衡</div>
+                    <div class="level2-value">{{ "{:.4f}".format(level2_info.order_imbalance) }}</div>
+                </div>
+                <div class="level2-item">
+                    <div class="level2-label">交易不平衡</div>
+                    <div class="level2-value">{{ "{:.4f}".format(level2_info.trade_imbalance) }}</div>
+                </div>
+                <div class="level2-item">
+                    <div class="level2-label">深度不平衡</div>
+                    <div class="level2-value">{{ "{:.4f}".format(level2_info.depth_imbalance) }}</div>
+                </div>
+                <div class="level2-item">
+                    <div class="level2-label">VWAP</div>
+                    <div class="level2-value">¥{{ "{:.2f}".format(level2_info.vwap) }}</div>
+                </div>
+                <div class="level2-item">
+                    <div class="level2-label">TWAP</div>
+                    <div class="level2-value">¥{{ "{:.2f}".format(level2_info.twap) }}</div>
+                </div>
+                <div class="level2-item">
+                    <div class="level2-label">微价格</div>
+                    <div class="level2-value">¥{{ "{:.2f}".format(level2_info.micro_price) }}</div>
+                </div>
+            </div>
+            
+            <h3>高级Level-2指标</h3>
+            <div class="level2-grid">
+                <div class="level2-item">
+                    <div class="level2-label">买卖压力</div>
+                    <div class="level2-value">{{ "{:.4f}".format(level2_info.bid_ask_pressure) }}</div>
+                </div>
+                <div class="level2-item">
+                    <div class="level2-label">价格强度</div>
+                    <div class="level2-value">{{ "{:.4f}".format(level2_info.price_strength) }}</div>
+                </div>
+                <div class="level2-item">
+                    <div class="level2-label">大单比率</div>
+                    <div class="level2-value">{{ "{:.4f}".format(level2_info.large_order_ratio) }}</div>
+                </div>
+                <div class="level2-item">
+                    <div class="level2-label">订单流不平衡</div>
+                    <div class="level2-value">{{ "{:.4f}".format(level2_info.order_flow_imbalance) }}</div>
+                </div>
+            </div>
+            
+            {% if level2_info.market_maker_behaviors %}
+            <div class="analysis-item" style="margin-top: 20px;">
+                <h4>检测到的做市商行为</h4>
+                <p>{{ level2_info.market_maker_behaviors | join(', ') }}</p>
+            </div>
+            {% endif %}
+            
+            <!-- Level-2量化模型分析 -->
+            <h3>📈 Level-2量化模型分析</h3>
+            
+            <!-- 盘口分析模型 -->
+            {% if level2_info.order_book_analysis %}
+            <h4>盘口分析</h4>
+            <div class="analysis-grid">
+                <div class="analysis-item">
+                    <h4>盘口类型</h4>
+                    <p>{{ level2_info.order_book_analysis.order_book_type }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>流动性评估</h4>
+                    <p>{{ level2_info.order_book_analysis.liquidity_assessment }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>价格稳定性</h4>
+                    <p>{{ level2_info.order_book_analysis.price_stability }}</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- 逐笔数据分析模型 -->
+            {% if level2_info.tick_data_analysis %}
+            <h4>逐笔数据分析</h4>
+            <div class="analysis-grid">
+                <div class="analysis-item">
+                    <h4>成交活跃度</h4>
+                    <p>{{ level2_info.tick_data_analysis.activity_level }}</p>
+                </div>
+                <div class="analysis-item">
+                      <h4>大单成交占比</h4>
+                      <p>{{ level2_info.tick_data_analysis.large_trade_ratio }}</p>
+                  </div>
+                <div class="analysis-item">
+                    <h4>成交速度</h4>
+                    <p>{{ level2_info.tick_data_analysis.trading_speed }}</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- 高频预测模型 -->
+            {% if level2_info.high_frequency_prediction %}
+            <h4>高频预测</h4>
+            <div class="analysis-grid">
+                <div class="analysis-item">
+                      <h4>短期价格走势</h4>
+                      <p>{{ level2_info.high_frequency_prediction.price_prediction }}</p>
+                  </div>
+                  <div class="analysis-item">
+                      <h4>5分钟波动率预测</h4>
+                      <p>{{ level2_info.high_frequency_prediction.volatility }}</p>
+                  </div>
+                  <div class="analysis-item">
+                      <h4>预测置信度</h4>
+                      <p>{{ level2_info.high_frequency_prediction.confidence }}</p>
+                  </div>
+            </div>
+            {% endif %}
+            
+            <!-- 资金流模型 -->
+            {% if level2_info.capital_flow %}
+            <h4>资金流分析</h4>
+            <div class="analysis-grid">
+                <div class="analysis-item">
+                    <h4>主动买入金额</h4>
+                    <p>{{ "{:,.2f}".format(level2_info.capital_flow.buy_amount) }}万元</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>主动卖出金额</h4>
+                    <p>{{ "{:,.2f}".format(level2_info.capital_flow.sell_amount) }}万元</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>资金净流入</h4>
+                    <p>{{ "{:,.2f}".format(level2_info.capital_flow.net_flow) }}万元</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>资金流比率</h4>
+                    <p>{{ "{:.2f}".format(level2_info.capital_flow.flow_ratio) }}</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- 突破识别策略 -->
+            {% if level2_info.breakout_signals %}
+            <h4>突破识别</h4>
+            <div class="analysis-grid">
+                {% if level2_info.breakout_signals.breakout_type %}
+                <div class="analysis-item">
+                    <h4>突破类型</h4>
+                    <p>{{ level2_info.breakout_signals.breakout_type }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>突破强度</h4>
+                    <p>{{ "{:.2f}".format(level2_info.breakout_signals.breakout_strength) }}</p>
+                </div>
+                <div class="analysis-item">
+                    <h4>突破价格</h4>
+                    <p>¥{{ "{:.2f}".format(level2_info.breakout_signals.breakout_price) }}</p>
+                </div>
+                {% else %}
+                <div class="analysis-item">
+                    <h4>突破信号</h4>
+                    <p>无</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- 买卖点提示 -->
+            <div class="buy-sell-tips">
+                <h4>💡 Level-2买卖点提示</h4>
+                <ul class="tip-list">
+                    {% if level2_info.order_imbalance > 0.3 %}
+                    <li>🔴 订单簿显示买方强势，可能存在买入机会</li>
+                    {% elif level2_info.order_imbalance < -0.3 %}
+                    <li>🟢 订单簿显示卖方强势，可能存在卖出机会</li>
+                    {% endif %}
+                    
+                    {% if level2_info.trade_imbalance > 0.3 %}
+                    <li>🔴 主动买入远多于主动卖出，买方动能充足</li>
+                    {% elif level2_info.trade_imbalance < -0.3 %}
+                    <li>🟢 主动卖出远多于主动买入，卖方压力较大</li>
+                    {% endif %}
+                    
+                    {% if level2_info.depth_imbalance > 0.3 %}
+                    <li>🔴 买方深度远大于卖方深度，支撑力度较强</li>
+                    {% elif level2_info.depth_imbalance < -0.3 %}
+                    <li>🟢 卖方深度远大于买方深度，阻力较大</li>
+                    {% endif %}
+                    
+                    {% if level2_info.vwap > 0 %}
+                        {% if stock_data.current_price > level2_info.vwap %}
+                        <li>🟢 当前价格高于VWAP，短线可能面临回调</li>
+                        {% elif stock_data.current_price < level2_info.vwap %}
+                        <li>🔴 当前价格低于VWAP，可能存在买入机会</li>
+                        {% endif %}
+                    {% endif %}
+                    
+                    {% if level2_info.bid_ask_pressure > 0.5 %}
+                    <li>🔴 买盘压力显著大于卖盘，短期上涨概率大</li>
+                    {% elif level2_info.bid_ask_pressure < -0.5 %}
+                    <li>🟢 卖盘压力显著大于买盘，短期下跌概率大</li>
+                    {% endif %}
+                    
+                    {% if level2_info.price_strength > 0.7 %}
+                    <li>🔴 价格强度极高，短期可能继续上涨</li>
+                    {% elif level2_info.price_strength < -0.7 %}
+                    <li>🟢 价格强度极低，短期可能继续下跌</li>
+                    {% endif %}
+                    
+                    {% if level2_info.large_order_ratio > 0.3 %}
+                    <li>🔴 大单成交占比较高，机构参与度增加</li>
+                    {% endif %}
+                    
+                    {% if level2_info.breakout_signals %}
+                        {% if level2_info.breakout_signals.breakout_type == '向上突破' %}
+                        <li>🔴 检测到向上突破，突破强度: {{ "{:.2f}".format(level2_info.breakout_signals.breakout_strength) }}，建议关注</li>
+                        {% elif level2_info.breakout_signals.breakout_type == '向下突破' %}
+                        <li>🟢 检测到向下突破，突破强度: {{ "{:.2f}".format(level2_info.breakout_signals.breakout_strength) }}，注意风险</li>
+                        {% endif %}
+                    {% endif %}
+                </ul>
+            </div>
+            {% elif level2_info == {} %}
+            <div class="analysis-item" style="text-align: center; padding: 40px;">
+                <h4>⚠️ 无法获取Level-2行情数据</h4>
+                <p style="margin-top: 15px; color: #666;">当前无法获取Level-2行情数据，可能是由于：</p>
+                <ul style="list-style-type: disc; list-style-position: inside; margin-top: 10px; color: #666;">
+                    <li>网络连接问题</li>
+                    <li>数据源API不可用</li>
+                    <li>需要付费Level-2服务</li>
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

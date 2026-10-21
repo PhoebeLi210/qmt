@@ -1,0 +1,52 @@
+# ===== 依赖 / 虚拟环境（体积大，可重装）=====
+.venv/
+venv/
+stock_analysis_system/venv/
+stock_analysis_system/.deps/
+
+# ===== Python 缓存 =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ===== 密钥 / 凭据（严禁入库）=====
+.deploy/
+.env
+*.env
+.secret_key
+*.key
+*.pem
+id_rsa*
+
+# ===== 数据库 / 运行结果 =====
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# ===== 日志 / 报告 / 图表 =====
+*.log
+logs/
+reports/
+test_reports/
+charts/
+
+# ===== 备份 / 打包 =====
+backup_*/
+*.tar.gz
+*.zip
+
+# ===== 非本项目内容 =====
+asset_filter_project/
+Users/
+
+# ===== 编辑器 / 系统 =====
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# ===== 临时文件 =====
+cache/
+*_tmp.db

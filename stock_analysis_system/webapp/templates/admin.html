@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}账号管理 - chaogu{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>账号管理</h1>
+  <span class="hint">管理登录账号、使用期限与密码；删除账号会同时清除其自选、持仓、分析结果和预警记录</span>
+</div>
+
+<div class="card" style="max-width:720px">
+  <h2 style="margin:0 0 12px;font-size:16px">新建账号</h2>
+  <form method="post" action="{{ url_for('admin_user_create') }}" class="admin-create-form">
+    <input type="text" name="username" placeholder="用户名（至少2字符）" required>
+    <input type="text" name="password" placeholder="初始密码（至少6位）" required>
+    <input type="date" name="expires_at" min="{{ today }}" title="留空=永久有效">
+    <button type="submit" class="btn btn-primary">创建</button>
+  </form>
+  <div class="hint" style="margin-top:6px">期限留空表示永久有效；到期当日仍可登录，次日起被拦截</div>
+</div>
+
+<div class="table-wrap" style="margin-top:16px">
+  <table class="mini-table" style="font-size:13.5px">
+    <thead>
+      <tr>
+        <th style="text-align:left;padding:8px">ID</th>
+        <th style="text-align:left;padding:8px">用户名</th>
+        <th style="text-align:left;padding:8px">注册时间</th>
+        <th style="text-align:left;padding:8px">期限状态</th>
+        <th style="text-align:left;padding:8px">设置期限</th>
+        <th style="text-align:left;padding:8px">重置密码</th>
+        <th style="text-align:left;padding:8px">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for item in users %}
+      {% set u = item.u %}
+      <tr>
+        <td style="padding:8px">{{ u.id }}</td>
+        <td style="padding:8px">
+          <b>{{ u.username }}</b>
+          {% if u.is_admin %}<span class="tag tag-pattern">管理员</span>{% endif %}
+        </td>
+        <td style="padding:8px" class="cell-small">{{ u.created_at }}</td>
+        <td style="padding:8px">
+          {% if u.is_admin %}
+            <span class="tag tag-done">永久（管理员）</span>
+          {% elif not u.expires_at %}
+            <span class="tag tag-done">永久</span>
+          {% elif item.days_left is not none and item.days_left < 0 %}
+            <span class="tag tag-failed">已过期（{{ u.expires_at[:10] }}）</span>
+          {% elif item.days_left is not none and item.days_left <= 7 %}
+            <span class="tag tag-nopass">{{ item.status }}（至 {{ u.expires_at[:10] }}）</span>
+          {% else %}
+            <span class="tag tag-pending">{{ item.status }}（至 {{ u.expires_at[:10] }}）</span>
+          {% endif %}
+        </td>
+        <td style="padding:8px">
+          {% if u.is_admin %}
+            <span class="cell-small">—</span>
+          {% else %}
+          <form method="post" action="{{ url_for('admin_user_expiry') }}" class="inline-form">
+            <input type="hidden" name="user_id" value="{{ u.id }}">
+            <input type="date" name="expires_at" class="admin-date" value="{{ u.expires_at[:10] if u.expires_at else '' }}">
+            <button type="submit" class="btn btn-mini">保存</button>
+            <button type="submit" class="btn btn-mini" formnovalidate
+                    onclick="this.form.elements['expires_at'].value=''">设为永久</button>
+          </form>
+          {% endif %}
+        </td>
+        <td style="padding:8px">
+          <form method="post" action="{{ url_for('admin_user_password') }}" class="inline-form">
+            <input type="hidden" name="user_id" value="{{ u.id }}">
+            <input type="text" name="password" class="admin-pw" placeholder="新密码≥6位" required>
+            <button type="submit" class="btn btn-mini">重置</button>
+          </form>
+        </td>
+        <td style="padding:8px">
+          {% if u.id == session.user_id %}
+            <span class="cell-small">当前账号</span>
+          {% else %}
+          <form method="post" action="{{ url_for('admin_user_delete') }}"
+                onsubmit="return confirm('确认删除账号 {{ u.username }}？\n其自选、持仓、分析结果和预警将一并删除，不可恢复。');">
+            <input type="hidden" name="user_id" value="{{ u.id }}">
+            <button type="submit" class="btn btn-mini btn-danger">删除</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

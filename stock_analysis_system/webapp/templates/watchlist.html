@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}我的自选 - chaogu{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>我的自选股</h1>
+  <span class="hint">每人独立股票池，盘后 15:40 自动用 v2.5 模型分析并推送结论</span>
+</div>
+
+<div class="card">
+  <form method="post" action="{{ url_for('watchlist_add') }}" class="inline-form">
+    <input type="text" name="code" placeholder="6位股票代码，如 600000" required pattern="[0-9A-Za-z.]{4,10}" class="input-code">
+    <input type="text" name="name" placeholder="名称（可选，自动识别）" class="input-name">
+    <button type="submit" class="btn btn-primary">添加自选</button>
+  </form>
+</div>
+
+{% set pending_rows = rows | selectattr('last_status', 'in', ['pending', 'running']) | list %}
+{% if pending_rows %}
+{% set pending_ids = pending_rows | selectattr('last_analysis_id', 'ne', none) | map(attribute='last_analysis_id') | list %}
+<div class="banner banner-info" id="pendingBanner"
+     data-base="{{ request.script_root }}"
+     data-ids='{{ pending_ids | tojson }}'>⏳ 有股票正在分析中，完成后本页自动更新…</div>
+<script>
+(function () {
+  const el = document.getElementById('pendingBanner');
+  const ids = JSON.parse(el.dataset.ids);
+  const base = el.dataset.base;
+  const timer = setInterval(async () => {
+    for (const id of ids) {
+      try {
+        const resp = await fetch(base + '/api/analysis_status/' + id);
+        const data = await resp.json();
+        if (data.ok && (data.status === 'done' || data.status === 'failed')) {
+          clearInterval(timer); location.reload();
+        }
+      } catch (e) { /* 忽略单次轮询失败 */ }
+    }
+  }, 8000);
+})();
+</script>
+{% endif %}
+
+{% if rows %}
+<div class="table-wrap">
+<table class="grid">
+  <thead>
+    <tr><th>代码</th><th>名称</th><th>最近分析</th><th>状态</th><th>结论</th><th>操作</th></tr>
+  </thead>
+  <tbody>
+  {% for w in rows %}
+    <tr>
+      <td class="mono">{{ w.code }}</td>
+      <td class="nowrap">{{ w.name or '—' }}</td>
+      <td class="cell-small">{{ w.last_date or '—' }}</td>
+      <td>
+        {% if w.last_status == 'done' %}
+          <span class="tag tag-done">已完成</span>
+        {% elif w.last_status in ('pending', 'running') %}
+          <span class="tag tag-pending">分析中…</span>
+        {% elif w.last_status == 'failed' %}
+          <span class="tag tag-failed">失败</span>
+        {% else %}
+          <span class="tag">未分析</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if w.last_status == 'done' %}
+          {% if w.last_passed %}<span class="tag tag-pass">✅ 符合买点</span>
+            {% if w.code in armed_codes %}<span class="tag tag-armed" title="现价回到买点参考价附近时盘中自动提醒">🔔买点已布防</span>{% endif %}
+          {% else %}<span class="tag tag-nopass">⭕ 未通过</span>{% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td class="actions">
+        {% if w.last_analysis_id %}
+          <a class="btn btn-mini" href="{{ url_for('analysis_detail', row_id=w.last_analysis_id) }}">查看报告</a>
+        {% endif %}
+        <form method="post" action="{{ url_for('watchlist_analyze') }}">
+          <input type="hidden" name="code" value="{{ w.code }}">
+          <button type="submit" class="btn btn-mini">立即分析</button>
+        </form>
+        <form method="post" action="{{ url_for('watchlist_delete') }}" onsubmit="return confirm('确认移除该自选股？')">
+          <input type="hidden" name="code" value="{{ w.code }}">
+          <button type="submit" class="btn btn-mini btn-danger">移除</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty">还没有自选股。添加一只朋友关注的股票，盘后会自动出分析报告。</div>
+{% endif %}
+
+<div class="tips">
+  <b>说明：</b>自选股分析与每日推荐使用同一套 v2.5 模型（多因子评分、形态判定、止损止盈规则）；
+  未通过买点条件的股票也会出完整报告，方便看清"为什么不符合"。
+</div>
+{% endblock %}

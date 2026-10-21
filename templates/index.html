@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票分析系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        label {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1.2em;
+            transition: border-color 0.3s ease;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .example {
+            margin-top: 20px;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .example span {
+            background: #f0f0f0;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin: 0 5px;
+            font-family: monospace;
+        }
+        
+        /* 加载状态样式 */
+        .loading-container {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .loading-container.show {
+            display: flex;
+            opacity: 1;
+        }
+        
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: white;
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+        
+        .loading-steps {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1em;
+            margin-top: 10px;
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📈 股票分析系统</h1>
+        <p class="subtitle">输入股票代码，获取详细分析报告和买卖点建议</p>
+        
+        <form id="analysisForm">
+            <div class="form-group">
+                <label for="stock_code">股票代码</label>
+                <input type="text" id="stock_code" name="stock_code" placeholder="请输入股票代码（如：000001）" required>
+            </div>
+            
+            <button type="submit" id="analyzeBtn">🔍 开始分析</button>
+        </form>
+        
+        <div class="example">
+            <p>示例代码：<span>000001</span>（平安银行）、<span>600036</span>（招商银行）、<span>000858</span>（五粮液）</p>
+        </div>
+    </div>
+    
+    <!-- 加载状态提示 -->
+    <div class="loading-container" id="loadingContainer">
+        <div class="spinner"></div>
+        <div class="loading-text">正在分析股票数据...</div>
+        <div class="loading-steps" id="loadingSteps">正在初始化分析器...</div>
+    </div>
+    
+    <script>
+        // 获取DOM元素
+        const form = document.getElementById('analysisForm');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loadingContainer = document.getElementById('loadingContainer');
+        const loadingSteps = document.getElementById('loadingSteps');
+        
+        // 表单提交事件处理
+        form.addEventListener('submit', function(e) {
+            e.preventDefault(); // 阻止默认表单提交
+            
+            const stockCode = document.getElementById('stock_code').value;
+            if (!stockCode) return;
+            
+            // 显示加载状态
+            loadingContainer.classList.add('show');
+            analyzeBtn.disabled = true;
+            
+            // 模拟加载步骤（实际会被后端步骤替代）
+            const steps = [
+                '正在获取股票基本信息...',
+                '正在分析交易数据...',
+                '正在分析主力资金流向...',
+                '正在生成分析报告...'
+            ];
+            
+            let stepIndex = 0;
+            const stepInterval = setInterval(() => {
+                if (stepIndex < steps.length) {
+                    loadingSteps.textContent = steps[stepIndex];
+                    stepIndex++;
+                }
+            }, 1000);
+            
+            // 使用fetch API进行异步提交
+            fetch('/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'stock_code': stockCode
+                })
+            })
+            .then(response => {
+                clearInterval(stepInterval);
+                if (response.redirected) {
+                    // 重定向到分析页面
+                    window.location.href = response.url;
+                }
+            })
+            .catch(error => {
+                clearInterval(stepInterval);
+                loadingSteps.textContent = '分析失败，请重试...';
+                console.error('分析请求失败:', error);
+                setTimeout(() => {
+                    loadingContainer.classList.remove('show');
+                    analyzeBtn.disabled = false;
+                }, 2000);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}chaogu 选股{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_ver }}">
+</head>
+<body>
+{% if current_username %}
+<nav class="topnav">
+  <div class="brand">📈 chaogu <span class="ver">v2.5</span></div>
+  <div class="navlinks">
+    <a href="{{ url_for('recommendations') }}" class="{{ 'active' if request.path.startswith('/recommendations') }}">推荐清单</a>
+    <a href="{{ url_for('watchlist') }}" class="{{ 'active' if request.path.startswith('/watchlist') }}">我的自选</a>
+    <a href="{{ url_for('positions') }}" class="{{ 'active' if request.path.startswith('/positions') }}">持仓盯盘</a>
+    <a href="{{ url_for('alerts') }}" class="{{ 'active' if request.path.startswith('/alerts') }}">预警记录</a>
+    <a href="{{ url_for('lab') }}" class="{{ 'active' if request.path.startswith('/lab') }}">优化实验室</a>
+    <a href="{{ url_for('settings') }}" class="{{ 'active' if request.path.startswith('/settings') }}">推送设置</a>
+    {% if session_is_admin %}<a href="{{ url_for('admin_users') }}" class="{{ 'active' if request.path.startswith('/admin') }}">账号管理</a>{% endif %}
+  </div>
+  <div class="navuser">
+    <span>{{ current_username }}</span>
+    <a href="{{ url_for('logout') }}" class="logout">退出</a>
+  </div>
+</nav>
+{% endif %}
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

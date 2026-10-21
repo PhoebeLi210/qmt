@@ -1,0 +1,15 @@
+[Unit]
+Description=chaogu v2.5 web (gunicorn, 1 worker + threads)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/chaogu
+EnvironmentFile=/opt/chaogu/chaogu.env
+ExecStart=/opt/chaogu/venv/bin/gunicorn -w 1 -k gthread --threads 8 -b 127.0.0.1:18001 --timeout 120 --access-logfile - "webapp.app:create_app()"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

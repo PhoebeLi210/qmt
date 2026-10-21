@@ -1,0 +1,5 @@
+# chaogu Web 展示层额外依赖（核心扫描依赖仍随 .deps 提供）
+# 版本用区间约束，避免新 Python 版本下精确锁定导致安装失败
+flask>=2.3,<4
+apscheduler>=3.10,<4
+requests>=2.28

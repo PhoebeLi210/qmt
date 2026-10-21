@@ -1,0 +1,5 @@
+# 服务器部署用：核心 v2.5 量化库 + Web 层 + Linux 生产 WSGI
+# 用法：/opt/chaogu/venv/bin/pip install -r requirements-server.txt
+-r requirements.txt
+-r requirements-web.txt
+gunicorn>=21.2,<24

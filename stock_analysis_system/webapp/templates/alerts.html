@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}预警记录 - chaogu{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>盘中预警记录</h1>
+  <span class="hint">最近 100 条；同一股票同一类预警每天最多一条，推送失败也会留痕</span>
+</div>
+
+{% if rows %}
+<div class="table-wrap">
+<table class="grid">
+  <thead>
+    <tr><th>时间</th><th>股票</th><th>类型</th><th>触发价</th><th>参考价</th><th>说明</th><th>推送</th></tr>
+  </thead>
+  <tbody>
+  {% for a in rows %}
+    <tr>
+      <td class="cell-small">{{ a.created_at }}</td>
+      <td class="mono">{{ a.code }}</td>
+      <td><span class="tag tag-pending">{{ type_names.get(a.alert_type, a.alert_type) }}</span></td>
+      <td class="mono">{{ '%.2f'|format(a.price) if a.price else '—' }}</td>
+      <td class="mono">{{ '%.2f'|format(a.ref_price) if a.ref_price else '—' }}</td>
+      <td class="cell-small">{{ a.detail or '' }}</td>
+      <td>{% if a.pushed %}<span class="tag tag-done">已推</span>{% else %}<span class="tag tag-failed">未推</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty">还没有预警记录。建仓或等待自选股触发买点后，这里会留下每一条盘中提醒。</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,357 @@
+{% extends 'base.html' %}
+{% block title %}优化实验室 - chaogu{% endblock %}
+{% block content %}
+
+<style>
+.row-pre-pending td { background: #fff5f5 !important; }
+.lab-matrix .v-total td { font-weight: 600; }
+.lab-matrix .v-pre td { opacity: 0.95; }
+</style>
+
+<div class="page-head">
+  <div>
+    <h2 style="margin:0">自优化实验室 <span class="sub">信号追踪与胜率归因（只读观察期）</span></h2>
+    <div class="hint">T+1 开盘买入（涨停剔除）· 路径口径=20 日内先触止盈/止损 · 窗口口径=T+3/5/10/20 收盘 · 已扣 0.2% 成本 · 基准：上证综指 · <strong>仅统计 2026-09-28 起含资金流+筹码因子的信号</strong>（之前胜率不代表当前策略）</div>
+  </div>
+</div>
+
+{# ---------------- 筛选器 ---------------- #}
+<div class="lab-filters">
+  <div class="lab-filter-group">
+    <span class="lab-filter-label">样本源</span>
+    <a class="lab-chip {{ 'on' if source=='all' }}" href="?source=all&regime={{ regime or 'all' }}{% if pat %}&pat={{ pat }}&band={{ band }}{% endif %}">全部</a>
+    {% for key, label in source_labels.items() %}
+          <a class="lab-chip {{ 'on' if source==key }}" href="?source={{ key }}&regime={{ regime or 'all' }}{% if pat %}&pat={{ pat }}&band={{ band }}{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <div class="lab-filter-group">
+    <span class="lab-filter-label">大盘择时</span>
+    {% for r in ['all','bull','neutral','bear','risk_off'] %}
+      <a class="lab-chip {{ 'on' if regime==r }}" href="?source={{ source or 'all' }}&regime={{ r }}{% if pat %}&pat={{ pat }}&band={{ band }}{% endif %}">{{ {'all':'全部','bull':'bull','neutral':'neutral','bear':'bear','risk_off':'risk_off'}[r] }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{# ---------------- 总览：按 P1 规则版本分组 ---------------- #}
+<div class="card" style="padding:14px 16px;margin-bottom:4px">
+  <strong>总览：按 P1 规则版本</strong>
+  <span class="hint" style="margin-left:6px">（P1 生效日 {{ p1['effective'] }}：P1前遗留信号均采用旧逻辑，含反转型形态</span>
+  <div class="table-wrap" style="margin-top:10px;border:none">
+    <table class="grid lab-matrix">
+      <thead>
+        <tr>
+          <th>版本</th><th class="num">信号</th><th class="num">追踪中</th>
+          <th class="num">已结案</th><th class="num">胜率</th>
+          <th class="num">平均实现</th><th class="num">平均持有</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set post = ov['by_version'].get('post', {}) %}
+        {% set pre  = ov['by_version'].get('pre',  {}) %}
+        {% set tot  = ov['by_version'].get('total', {}) %}
+        {% if post.get('n', 0) %}
+        <tr class="v-post">
+          <td><span class="tag tag-pass">P1 后新信号</span></td>
+          <td class="num">{{ post['n'] }}</td>
+          <td class="num">{{ post.get('pending', 0) }}</td>
+          <td class="num">{{ post.get('closed', 0) }}</td>
+          <td class="num">
+            {% if post.get('closed') %}
+              {{ '%.1f'|format(post['wins']/post['closed']*100) }}%
+            {% else %}—{% endif %}
+          </td>
+          <td class="num {{ 'up' if (post.get('avg_realized') or 0) > 0 else 'down' if post.get('avg_realized') is not none }}">
+            {% if post.get('avg_realized') is not none %}{{ '%+.2f'|format(post['avg_realized']*100) }}%{% else %}—{% endif %}
+          </td>
+          <td class="num">{% if post.get('avg_hold') is not none %}{{ '%.1f'|format(post['avg_hold']) }}d{% else %}—{% endif %}</td>
+        </tr>
+        {% endif %}
+        {% if pre.get('n', 0) %}
+        <tr class="v-pre">
+          <td><span class="tag tag-nopass">P1 前遗留</span>
+            <span class="cell-small down">· 旧逻辑·含反转型</span></td>
+          <td class="num">{{ pre['n'] }}</td>
+          <td class="num">{{ pre.get('pending', 0) }}</td>
+          <td class="num">{{ pre.get('closed', 0) }}</td>
+          <td class="num down">
+            {% if pre.get('closed') %}
+              {{ '%.1f'|format(pre['wins']/pre['closed']*100) }}%
+            {% else %}—{% endif %}
+          </td>
+          <td class="num down">
+            {% if pre.get('avg_realized') is not none %}{{ '%+.2f'|format(pre['avg_realized']*100) }}%{% else %}—{% endif %}
+          </td>
+          <td class="num">{% if pre.get('avg_hold') is not none %}{{ '%.1f'|format(pre['avg_hold']) }}d{% else %}—{% endif %}</td>
+        </tr>
+        {% endif %}
+        <tr class="v-total" style="border-top:2px solid">
+          <td class="strong">合计</td>
+          <td class="num">{{ tot['n'] }}</td>
+          <td class="num">{{ tot.get('pending', 0) }}</td>
+          <td class="num">{{ tot.get('closed', 0) }}</td>
+          <td class="num {{ 'metric-hit' if (tot.get('win_rate') or 0) >= 0.5 }}">
+            {% if tot.get('closed') %}
+              {{ '%.1f'|format(tot['wins']/tot['closed']*100) }}%
+            {% else %}—{% endif %}
+          </td>
+          <td class="num {{ 'up' if (tot.get('avg_realized') or 0) > 0 else 'down' if tot.get('avg_realized') is not none }}">
+            {% if tot.get('avg_realized') is not none %}{{ '%+.2f'|format(tot['avg_realized']*100) }}%{% else %}—{% endif %}
+          </td>
+          <td class="num">{% if tot.get('avg_hold') is not none %}{{ '%.1f'|format(tot['avg_hold']) }}d{% else %}—{% endif %}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="hint" style="margin-top:8px">
+    <span class="down">注：P1 前遗留信号里含 200+ 条反转型形态（v_rebound/double_bottom），胜率 ~8%，结案会持续到 11 月中</span>
+    · 在此之前合计行会被旧信号拖累，P1 后新信号的真实胜率要等这批清完后才看得清
+  </div>
+</div>
+
+{# ---------------- P1 防守市规则监控 ---------------- #}
+<div class="card" style="padding:14px 16px;margin:16px 0">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+    <strong>P1 防守市规则监控 <span class="sub">（{{ p1['effective'] }} 起生效）</span></strong>
+    <span class="hint">基线（9/28–P1前 {{ p1['baseline']['days'] }} 天）：日均 {{ p1['baseline']['per_day'] }} 条信号 / {{ p1['baseline']['rec_per_day'] }} 条推荐 · 校验口径：防守市信号应全 ≥55 分 · bear 应零推荐 · risk_off 应无反转型推荐（仅全市场来源，自选分析不受约束）</span>
+  </div>
+  {% if p1['days'] %}
+  <div class="table-wrap" style="margin-top:10px">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>信号日</th><th>择时</th><th class="num">信号</th><th class="num">推荐</th>
+          <th class="num">均分</th><th class="num">&lt;55分</th><th class="num">反转型推荐</th><th>校验</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in p1['days'] %}
+        <tr>
+          <td class="nowrap">{{ d['date'] }}</td>
+          <td>{{ d['regime'] }}</td>
+          <td class="num">{{ d['n'] }}</td>
+          <td class="num">{{ d['rec'] }}</td>
+          <td class="num">{{ d['avg_score'] if d['avg_score'] is not none else '—' }}</td>
+          <td class="num {{ 'down' if d['lt55'] }}">{{ d['lt55'] }}</td>
+          <td class="num {{ 'down' if d['ct_rec'] }}">{{ d['ct_rec'] }}</td>
+          <td class="nowrap">
+            {% if d['status'] == 'ok' %}
+              <span class="tag tag-pass">生效</span>
+            {% elif d['status'] == 'violation' %}
+              <span class="tag tag-nopass">异常</span> <span class="cell-small">{{ d['note'] }}</span>
+            {% else %}
+              <span class="tag tag-pending">无约束</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if p1['violations'] %}
+  <div class="hint" style="margin-top:8px">
+    <span class="down">发现 {{ p1['violations'] }} 天规则异常</span>，请检查当日 full_scan 日志（/opt/chaogu/logs/）。
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="hint" style="text-align:center;padding:16px">
+    P1 后暂无数据：首个生效交易日 {{ p1['effective'] }} 的 15:50 全市场扫描后出数。
+    防守市信号量较基线骤降、bear 日推荐为空均为规则生效表现，不是故障。
+  </div>
+  {% endif %}
+</div>
+
+{# ---------------- 形态 × 分数段矩阵 ---------------- #}
+<div class="card" style="padding:14px 16px;margin:16px 0">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+    <strong>形态 × 分数段 胜率矩阵</strong>
+    <span class="hint">每格：路径胜率（平均实现收益）· 结案样本 n，n≥{{ min_sample }} 才高亮可信 · 点格子看明细</span>
+  </div>
+  <div class="table-wrap" style="margin-top:10px;border:none">
+    <table class="grid lab-matrix">
+      <thead>
+        <tr>
+          <th class="lab-corner">形态 ＼ 分数段</th>
+          {% for b in bands %}<th class="num">{{ band_labels[b] }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in patterns %}
+        <tr>
+          <td class="nowrap strong">{{ pat_labels[p] }}</td>
+          {% for b in bands %}
+            {% set c = mat.get((p, b)) %}
+            <td class="num">
+              {% if c %}
+                {% set base = '?pat=' ~ p ~ '&band=' ~ b ~ '&source=' ~ (source or 'all') ~ '&regime=' ~ (regime or 'all') %}
+                {% if c['closed'] >= min_sample %}
+                  <a class="lab-cell lab-cell-ok" href="{{ base }}#samples">
+                    <span class="{{ 'up' if (c['win_rate'] or 0) >= 0.5 else 'down' }}">{{ '%.0f'|format(c['win_rate']*100) }}%</span>
+                    <span class="lab-cell-sub">{{ '%+.1f'|format((c['avg_realized'] or 0)*100) }}% · n={{ c['closed'] }}</span>
+                  </a>
+                {% else %}
+                  <a class="lab-cell lab-cell-thin" href="{{ base }}#samples">
+                    <span class="lab-cell-sub">积累中 {{ c['closed'] }}/{{ min_sample }}</span>
+                    <span class="lab-cell-sub2">总样本 {{ c['n'] }}</span>
+                  </a>
+                {% endif %}
+              {% else %}
+                <span class="lab-cell-empty">—</span>
+              {% endif %}
+            </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="hint" style="margin-top:8px">
+    横看：分数有没有区分度（推荐线 70 是否合理）· 竖看：哪种形态该收紧/放宽 · 格内平均收益：止损止盈参数的直接成绩单
+  </div>
+</div>
+
+{# ---------------- 格子明细 ---------------- #}
+{% if samples is not none %}
+<div class="card" id="samples" style="padding:14px 16px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+    <strong>明细：{{ pat_labels[pat] }} × {{ band_labels[band] }} 分（{{ samples|length }} 条，最多显示 200）</strong>
+    <a class="btn" href="?source={{ source or 'all' }}&regime={{ regime or 'all' }}">返回矩阵</a>
+  </div>
+  <div class="table-wrap" style="margin-top:10px">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>信号日</th><th>版本</th><th>代码</th><th>名称</th><th>评分</th><th>择时</th><th>来源</th>
+          <th class="num">买入价</th><th>状态</th><th class="num">实现收益</th>
+          <th class="num">T+5</th><th class="num">T+20</th><th class="num">超额</th>
+          <th class="num">持有</th><th>退出</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in samples %}
+        <tr class="{{ 'row-pre-pending' if s.get('version','P1后')=='P1前遗留' and (s['status'] is none or s['status']=='pending') }}">
+          <td class="nowrap">{{ s['signal_date'] }}</td>
+          <td class="cell-small">
+            {% set v = s.get('version', 'P1后') %}
+            {% if v == 'P1后' %}
+              <span class="tag tag-pass" style="font-size:10px;padding:1px 6px">P1后</span>
+            {% else %}
+              <span class="tag tag-nopass" style="font-size:10px;padding:1px 6px">P1前遗留</span>
+            {% endif %}
+          </td>
+          <td class="mono">{{ s['code'] }}</td>
+          <td class="nowrap">{{ s['name'] or '—' }}</td>
+          <td class="num">{{ '%.1f'|format(s['score']) if s['score'] is not none else '—' }}</td>
+          <td>{{ s['market_regime'] or '—' }}</td>
+          <td class="cell-small">{{ source_labels.get(s['source'], s['source']) }}</td>
+          <td class="num">{{ '%.2f'|format(s['entry_price']) if s['entry_price'] else '—' }}</td>
+          <td class="nowrap">
+            {% if s['status'] == 'closed' %}
+              {% set cls = {'win':'tag-pass','loss':'tag-nopass','neutral':'tag-pending'}[s['path_result']] %}
+              <span class="tag {{ cls }}">{{ {'win':'胜','loss':'负','neutral':'中性'}[s['path_result']] }}</span>
+            {% elif s['status'] == 'no_entry' %}
+              <span class="tag tag-nopass">涨停未成交</span>
+            {% else %}
+              <span class="tag tag-pending">追踪中</span>
+            {% endif %}
+          </td>
+          <td class="num {{ 'up' if (s['realized_ret'] or 0) > 0 else 'down' if s['realized_ret'] is not none and s['status']=='closed' }}">
+            {% if s['realized_ret'] is not none and s['status'] == 'closed' %}{{ '%+.1f'|format(s['realized_ret']*100) }}%{% else %}—{% endif %}
+          </td>
+          <td class="num">{{ '%+.1f'|format(s['ret_5d']*100) if s['ret_5d'] is not none else '—' }}%</td>
+          <td class="num">{{ '%+.1f'|format(s['ret_20d']*100) if s['ret_20d'] is not none else '—' }}%</td>
+          <td class="num">{{ '%+.1f'|format(s['excess_20d']*100) if s['excess_20d'] is not none else '—' }}%</td>
+          <td class="num">{{ s['hold_days'] if s['hold_days'] is not none else '—' }}</td>
+          <td class="cell-small">{{ {'tp2':'触止盈','sl':'触止损','sl_after_tp1':'止盈后止损','neutral':'到期中性'}.get(s['exit_reason'], '—') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="15" class="hint" style="text-align:center;padding:24px">该格子暂无样本</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="hint" style="margin-top:14px">
+  数据积累期（预计 4–6 周）只观察、不自动改参数；止损止盈路径回放与 walk-forward 提案引擎已就绪。
+  参数版本：baseline-v1（与线上策略一致）。手动跑寻优：<code>python -m webapp.lab.optimizer</code>
+</div>
+
+{# ---------------- 优化提案 ---------------- #}
+<div class="card" style="padding:14px 16px;margin-top:16px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+    <strong>止损止盈参数优化提案</strong>
+    <span class="hint">路径回放网格寻优（sl×tp2×tp1比例×持有天数）+ Walk-forward + Bootstrap 稳定性 + 改善门槛</span>
+  </div>
+  {% if proposals %}
+  <div class="table-wrap" style="margin-top:10px">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>形态</th><th>分数段</th><th>样本</th>
+          <th>基线止损/止盈</th><th>基线 EV</th><th>基线胜率</th>
+          <th>提案止损/止盈</th><th>提案 EV</th><th>提案胜率</th>
+          <th>EV 提升</th><th>稳定性</th><th>WF</th><th>状态</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in proposals %}
+          {% set bp = p['baseline_params'] | from_json %}
+          {% set bs = p['baseline_stats'] | from_json %}
+          {% set pp = p['proposed_params'] | from_json %}
+          {% set ps = p['proposed_stats'] | from_json %}
+        <tr style="{{ 'background:var(--brand-soft)' if p['eligible'] else 'opacity:.6' }}">
+          <td class="nowrap">{{ pat_labels[p['pattern']] }}</td>
+          <td class="num">{{ band_labels[p['score_band']] }}</td>
+          <td class="num">{{ p['n_samples'] }}</td>
+          <td class="cell-small">
+            sl {{ bp['sl_pct'] }}% / tp1 {{ bp['tp1_pct'] }}% / tp2 {{ bp['tp2_pct'] }}% / {{ bp['time_stop_days'] }}日
+          </td>
+          <td class="num">{{ '%.2f'|format(bs['ev']*100) }}%</td>
+          <td class="num">{{ '%.0f'|format(bs['win_rate']*100) }}%</td>
+          <td class="cell-small strong">
+            sl {{ pp['sl_pct'] }}% / tp1 {{ pp['tp1_pct'] }}% / tp2 {{ pp['tp2_pct'] }}% / {{ pp['time_stop_days'] }}日
+          </td>
+          <td class="num strong">{{ '%.2f'|format(ps['ev']*100) }}%</td>
+          <td class="num">{{ '%.0f'|format(ps['win_rate']*100) }}%</td>
+          <td class="num {{ 'up' if p['ev_gain'] > 0 else 'down' }}">
+            {{ '%+.2f'|format(p['ev_gain']*100) }}%
+          </td>
+          <td class="num">{{ '%.0f'|format(p['bootstrap_stability']*100) }}%</td>
+          <td class="num">{{ '✅' if p['walk_forward'] else '❌' }}</td>
+          <td>
+            {% if p['status'] == 'approved' %}<span class="tag tag-pass">已批准</span>
+            {% elif p['status'] == 'rejected' %}<span class="tag tag-nopass">已拒绝</span>
+            {% elif p['eligible'] %}<span class="tag tag-pass">待审核</span>
+            {% else %}<span class="tag tag-pending">未达标</span>{% endif %}
+          </td>
+          <td class="nowrap">
+            {% if p['eligible'] and p['status'] == 'pending' %}
+            <form method="post" action="{{ url_for('lab_decide', pid=p['id']) }}"
+                  style="display:inline">
+              <button name="status" value="approved" class="btn"
+                      style="padding:2px 8px;font-size:12px"
+                      onclick="return confirm('批准该提案？参数将进入影子并行期，4-8周后如显著更优才转正。')">批准</button>
+              <button name="status" value="rejected" class="btn btn-danger"
+                      style="padding:2px 8px;font-size:12px">拒绝</button>
+            </form>
+            {% elif p['status'] == 'approved' %}
+              <span class="hint">影子运行中</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="hint" style="margin-top:8px">
+    基线 = 线上当前参数；提案 = 样本外期望收益最高组。通过全部护栏（WF 有效 + Bootstrap 稳定性≥70% + EV 提升≥0.5pp 或胜率提升≥3pp + n≥30）的行高亮，可批准进入影子期。
+  </div>
+  {% else %}
+  <div class="hint" style="text-align:center;padding:24px">
+    暂无提案。数据达标后运行 <code>python -m webapp.lab.optimizer</code> 生成。
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

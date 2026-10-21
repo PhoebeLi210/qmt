@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% block title %}我的持仓 - chaogu{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>我的持仓</h1>
+  <span class="hint">交易时段每 2 分钟检查止损/止盈/移动止损与盘中见顶信号，触发即推送，记录见<a href="{{ url_for('alerts') }}">预警记录</a></span>
+</div>
+
+<div class="card">
+  <form method="post" action="{{ url_for('positions_add') }}" class="pos-form">
+    <div class="pos-fields">
+      <label>股票代码
+        <input type="text" name="code" required pattern="[0-9A-Za-z.]{4,10}" placeholder="600000">
+      </label>
+      <label>成本价
+        <input type="number" name="cost" step="0.001" min="0.01" required placeholder="9.00">
+      </label>
+      <label>股数（可选）
+        <input type="number" name="shares" step="100" min="0" placeholder="1000">
+      </label>
+      <label>止损%
+        <input type="number" name="stop_pct" step="0.5" min="1" max="50" value="7">
+      </label>
+      <label>止盈%
+        <input type="number" name="take_pct" step="0.5" min="1" max="50" value="15">
+      </label>
+      <label>移动回撤%
+        <input type="number" name="trail_pct" step="0.5" min="1" max="50" value="5">
+      </label>
+      <label>建仓日
+        <input type="date" name="opened_at">
+      </label>
+      <label>备注
+        <input type="text" name="note" maxlength="50" placeholder="可选">
+      </label>
+    </div>
+    <div class="inline-form">
+      <button type="submit" class="btn btn-primary">建仓并布防</button>
+      <span class="hint">止损/止盈默认 -7% / +15%；移动止损按持仓以来最高价回撤 5%（与硬止损取更高者）</span>
+    </div>
+  </form>
+</div>
+
+{% if rows %}
+<div class="table-wrap">
+<table class="grid grid-wide">
+  <thead>
+    <tr><th>代码</th><th>成本</th><th>股数</th><th>现价</th><th>浮盈亏</th>
+        <th>主力净占比</th><th>获利盘/平均成本</th>
+        <th>止损线</th><th>止盈线</th><th>最高价/移动止损</th><th>建仓日</th><th>操作</th></tr>
+  </thead>
+  <tbody>
+  {% for p in rows %}
+    <tr>
+      <td class="mono">{{ p.code }}<div class="cell-small nowrap">{{ p.name or '' }}</div></td>
+      <td>{{ '%.2f'|format(p.cost) }}</td>
+      <td>{{ p.shares or '—' }}</td>
+      <td>
+        {% if p.price %}
+          {{ '%.2f'|format(p.price) }}
+          {% if p.pct is not none %}<div class="cell-small {{ 'up' if p.pct > 0 else ('down' if p.pct < 0) }}">{{ '%+.2f%%'|format(p.pct) }}</div>{% endif %}
+        {% else %}<span class="hint">—</span>{% endif %}
+      </td>
+      <td>
+        {% if p.pnl_pct is not none %}
+          <span class="{{ 'up' if p.pnl_pct > 0 else ('down' if p.pnl_pct < 0) }}"><b>{{ '%+.1f%%'|format(p.pnl_pct) }}</b></span>
+          {% if p.mv %}<div class="cell-small">市值 {{ '%.0f'|format(p.mv) }}</div>{% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if p.ext and p.ext.fund and p.ext.fund.mf_main_ratio is not none %}
+          {% set mr = p.ext.fund.mf_main_ratio %}
+          <span class="{{ 'up' if mr > 0 else 'down' }}"><b>{{ '%+.1f%%'|format(mr*100) }}</b></span>
+          {% if p.ext.fund.mf_main_net is not none and p.ext.fund.mf_main_net|abs >= 1e4 %}
+            <div class="cell-small">{{ '%+.2f'|format(p.ext.fund.mf_main_net/1e8) }} 亿</div>
+          {% endif %}
+        {% else %}<span class="hint">—</span>{% endif %}
+      </td>
+      <td>
+        {% if p.ext and p.ext.chip %}
+          <span class="{{ 'up' if p.ext.chip.profit_ratio >= 0.5 else 'down' }}">{{ '%.0f%%'|format(p.ext.chip.profit_ratio*100) }}</span>
+          <div class="cell-small nowrap">成本 {{ '%.2f'|format(p.ext.chip.avg_cost) }}</div>
+          {% if p.ext.chip.price_vs_cost is not none %}
+            <div class="cell-small {{ 'up' if p.ext.chip.price_vs_cost > 0 else 'down' }}">偏离 {{ '%+.1f%%'|format(p.ext.chip.price_vs_cost*100) }}</div>
+          {% endif %}
+        {% else %}<span class="hint">—</span>{% endif %}
+      </td>
+      <td class="down">{{ '%.2f'|format(p.stop_line) }}<div class="cell-small">-{{ '%.1f'|format(p.stop_pct*100) }}%</div></td>
+      <td class="up">{{ '%.2f'|format(p.take_line) }}<div class="cell-small">+{{ '%.1f'|format(p.take_pct*100) }}%</div></td>
+      <td>{{ '%.2f'|format(p.peak) }}<div class="cell-small">{% if p.trail_line %}→ {{ '%.2f'|format(p.trail_line) }}{% else %}移动止损待激活{% endif %}</div></td>
+      <td class="cell-small">{{ p.opened_at }}</td>
+      <td class="actions">
+        <form method="post" action="{{ url_for('positions_close') }}" onsubmit="return confirm('确认按当前持仓平仓？预警将停止。')">
+          <input type="hidden" name="id" value="{{ p.id }}">
+          <button type="submit" class="btn btn-mini">平仓</button>
+        </form>
+        <form method="post" action="{{ url_for('positions_delete') }}" onsubmit="return confirm('确认删除该持仓记录？不可恢复。')">
+          <input type="hidden" name="id" value="{{ p.id }}">
+          <button type="submit" class="btn btn-mini btn-danger">删除</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty">还没有持仓。录入成本价后，交易时段会自动盯止损、止盈和盘中见顶信号。</div>
+{% endif %}
+
+{% if closed %}
+<h3 class="section-title">已平仓（最近 {{ closed|length }} 条）</h3>
+<div class="table-wrap">
+<table class="grid">
+  <thead><tr><th>代码</th><th>名称</th><th>成本</th><th>股数</th><th>持仓最高价</th><th>建仓日</th><th>平仓时间</th><th></th></tr></thead>
+  <tbody>
+  {% for p in closed %}
+    <tr>
+      <td class="mono">{{ p.code }}</td><td class="nowrap">{{ p.name or '—' }}</td>
+      <td>{{ '%.2f'|format(p.cost) }}</td><td>{{ p.shares or '—' }}</td>
+      <td>{{ '%.2f'|format(p.peak_price or p.cost) }}</td>
+      <td class="cell-small">{{ p.opened_at }}</td>
+      <td class="cell-small">{{ p.closed_at }}</td>
+      <td class="actions">
+        <form method="post" action="{{ url_for('positions_delete') }}">
+          <input type="hidden" name="id" value="{{ p.id }}">
+          <button type="submit" class="btn btn-mini btn-danger">删除记录</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<div class="tips">
+  <b>规则说明：</b>止损/止盈/移动止损/冲高回落/主力大幅流出预警每只股票每天每类最多推送一次；
+  移动止损线只上移不下移，平仓后停止监控；自选股"买点提醒"对最近一次分析通过且未持仓的股票自动布防，现价回到参考价附近即提醒。
+  主力净占比=超大单+大单净额占成交额比，当日 ≤ -8% 触发流出预警；获利盘/平均成本为历史换手衰减模型估算。
+  所有预警均为机械规则，非投资建议。
+</div>
+{% endblock %}

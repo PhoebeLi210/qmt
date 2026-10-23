@@ -140,7 +140,7 @@ def cell_samples(pattern_key, band, sources, regime=None, limit=200):
     where += f' AND {_PAT_SQL} = ? AND {_BAND_SQL} = ?'
     args += [pattern_key, band]
     with db.get_db() as conn:
-        return conn.execute(f"""
+        rows = conn.execute(f"""
             SELECT s.signal_date, s.code, s.name, s.pattern, s.score,
                    CASE WHEN s.signal_date >= ? THEN 'P1后' ELSE 'P1前遗留' END AS version,
                    s.market_regime, s.recommended, s.ref_price, s.source,
@@ -152,6 +152,7 @@ def cell_samples(pattern_key, band, sources, regime=None, limit=200):
             WHERE {where}
             ORDER BY s.signal_date DESC, s.id DESC LIMIT ?""",
             [P1_EFFECTIVE_DATE] + args + [limit]).fetchall()
+    return [dict(r) for r in rows]
 
 
 def p1_monitor():

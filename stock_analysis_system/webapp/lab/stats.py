@@ -105,6 +105,30 @@ def overview(sources, regime=None):
         'avg_hold': ov['avg_hold'],
         'win_rate': (ov['wins'] / ov['closed']) if ov['closed'] else None,
     }
+
+    # 按大盘状态分组统计（核心！判断策略在不同行情下的真实表现）
+    by_regime_rows = conn.execute(f"""
+        SELECT
+          COALESCE(s.market_regime, 'unknown') AS regime,
+          COUNT(*) AS n,
+          SUM(CASE WHEN o.status IS NULL OR o.status='pending' THEN 1 ELSE 0 END) AS pending,
+          SUM(CASE WHEN o.status='closed' THEN 1 ELSE 0 END) AS closed,
+          SUM(CASE WHEN o.path_result='win' THEN 1 ELSE 0 END) AS wins,
+          SUM(CASE WHEN o.path_result='loss' THEN 1 ELSE 0 END) AS losses,
+          AVG(CASE WHEN o.status='closed' THEN o.realized_ret END) AS avg_realized,
+          AVG(CASE WHEN o.status='closed' THEN o.hold_days END) AS avg_hold
+        FROM signal_snapshots s
+        LEFT JOIN signal_outcomes o ON o.snapshot_id = s.id
+        WHERE {where}
+        GROUP BY s.market_regime
+        ORDER BY CASE s.market_regime
+          WHEN 'bull' THEN 1 WHEN 'neutral' THEN 2
+          WHEN 'risk_off' THEN 3 WHEN 'bear' THEN 4 ELSE 5 END""", args).fetchall()
+    ov['by_regime'] = []
+    for rr in by_regime_rows:
+        d = dict(rr)
+        d['win_rate'] = (d['wins'] / d['closed']) if d['closed'] else None
+        ov['by_regime'].append(d)
     return ov
 
 

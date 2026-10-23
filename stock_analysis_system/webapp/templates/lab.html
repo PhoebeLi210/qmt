@@ -108,6 +108,67 @@
   </div>
 </div>
 
+{# ---------------- 总览：按大盘状态分组（核心！判断策略真实有效性）---------------- #}
+<div class="card" style="padding:14px 16px;margin-bottom:16px">
+  <strong>总览：按大盘状态分组</strong>
+  <span class="hint" style="margin-left:6px">（判断策略在 bull/neutral 是否有效，不被防守市烂数据污染）</span>
+  <div class="table-wrap" style="margin-top:10px;border:none">
+    <table class="grid lab-matrix">
+      <thead>
+        <tr>
+          <th>大盘状态</th><th class="num">信号</th><th class="num">追踪中</th>
+          <th class="num">已结案</th><th class="num">胜率</th>
+          <th class="num">平均实现</th><th class="num">平均持有</th>
+          <th>结论</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in ov['by_regime'] %}
+        <tr class="regime-{{ r['regime'] }}">
+          <td>
+            {% if r['regime'] == 'bull' %}
+              <span class="tag tag-pass" style="background:#d4edda;color:#155724">bull 牛市</span>
+            {% elif r['regime'] == 'neutral' %}
+              <span class="tag" style="background:#fff3cd;color:#856404">neutral 震荡</span>
+            {% elif r['regime'] == 'risk_off' %}
+              <span class="tag tag-nopass" style="background:#f8d7da;color:#721c24">risk_off 防守</span>
+            {% elif r['regime'] == 'bear' %}
+              <span class="tag tag-nopass" style="background:#f5c6cb;color:#721c24">bear 熊市</span>
+            {% else %}
+              <span class="tag">{{ r['regime'] }}</span>
+            {% endif %}
+          </td>
+          <td class="num">{{ r['n'] }}</td>
+          <td class="num">{{ r['pending'] }}</td>
+          <td class="num">{{ r['closed'] }}</td>
+          <td class="num {{ 'metric-hit' if (r['win_rate'] or 0) >= 0.5 else 'down' if r['win_rate'] is not none and r['win_rate'] < 0.2 }}">
+            {% if r['closed'] %}{{ '%.1f'|format(r['win_rate']*100) }}%{% else %}—{% endif %}
+          </td>
+          <td class="num {{ 'up' if (r['avg_realized'] or 0) > 0 else 'down' if r['avg_realized'] is not none }}">
+            {% if r['avg_realized'] is not none %}{{ '%+.2f'|format(r['avg_realized']*100) }}%{% else %}—{% endif %}
+          </td>
+          <td class="num">{% if r['avg_hold'] is not none %}{{ '%.1f'|format(r['avg_hold']) }}d{% else %}—{% endif %}</td>
+          <td class="cell-small">
+            {% if r['regime'] == 'bull' and r['win_rate'] and r['win_rate'] >= 0.5 %}
+              <span class="up">策略有效</span>
+            {% elif r['regime'] == 'neutral' and r['win_rate'] and r['win_rate'] >= 0.4 %}
+              <span style="color:#856404">谨慎可用</span>
+            {% elif r['regime'] in ('risk_off', 'bear') %}
+              <span class="down">禁用</span>
+            {% else %}
+              <span class="hint">样本不足</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="hint" style="margin-top:8px">
+    <strong>判断标准</strong>：bull 胜率 ≥50% 且平均收益 >0 → 策略牛市有效；neutral 胜率 ≥40% → 震荡市谨慎可用；risk_off/bear 胜率 <20% → 防守市禁用（当前数据已验证）
+  </div>
+</div>
+
 {# ---------------- P1 防守市规则监控 ---------------- #}
 <div class="card" style="padding:14px 16px;margin:16px 0">
   <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
